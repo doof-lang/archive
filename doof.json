@@ -1,0 +1,16 @@
+{
+  "name": "std/archive",
+  "version": "0.1.0",
+  "license": "ISC",
+  "build": {
+    "native": {
+      "extraCopyPaths": [
+        "./native_archive.hpp"
+      ],
+      "linkLibraries": [
+        "z"
+      ]
+    }
+  },
+  "dependencies": {}
+}
