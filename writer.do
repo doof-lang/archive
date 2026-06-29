@@ -2,12 +2,12 @@ import { BlobBuilder } from "std/blob"
 import { crc32, deflate } from "./native"
 import { ArchiveEntryKind, ZipCompression, ZipEntry } from "./types"
 
-const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
-const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
-const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
-const ZIP_VERSION_NEEDED = 20
-const ZIP_VERSION_MADE_BY = 20
-const ZIP_UTF8_FLAG = 1 << 11
+readonly LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
+readonly CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
+readonly END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
+readonly ZIP_VERSION_NEEDED = 20
+readonly ZIP_VERSION_MADE_BY = 20
+readonly ZIP_UTF8_FLAG = 1 << 11
 
 function encodedName(name: string): readonly byte[] {
   builder := BlobBuilder()

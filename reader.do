@@ -2,9 +2,9 @@ import { BlobReader } from "std/blob"
 import { crc32, inflate } from "./native"
 import { ArchiveEntryKind, CentralDirectoryEntry, ZipCompression, ZipEntry } from "./types"
 
-const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
-const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
-const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
+readonly LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
+readonly CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
+readonly END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
 
 function entryKindForName(name: string): ArchiveEntryKind {
   if name.length > 0 && name.slice(name.length - 1) == "/" {
