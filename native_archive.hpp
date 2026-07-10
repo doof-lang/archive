@@ -31,7 +31,7 @@ inline doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string> zlibErro
         message += " with zlib code ";
         message += std::to_string(code);
     }
-    return doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string>::failure(message);
+    return doof::Failure<std::string>{message};
 }
 
 inline std::shared_ptr<std::vector<uint8_t>> deflateRaw(const std::shared_ptr<std::vector<uint8_t>>& data) {
@@ -84,9 +84,7 @@ inline doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string> inflateR
     z_stream stream {};
     const int initialized = inflateInit2(&stream, -MAX_WBITS);
     if (initialized != Z_OK) {
-        return doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string>::failure(
-            "inflate initialize failed with zlib code " + std::to_string(initialized)
-        );
+        return doof::Failure<std::string>{"inflate initialize failed with zlib code " + std::to_string(initialized)};
     }
 
     struct InflateEnd {
@@ -109,7 +107,7 @@ inline doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string> inflateR
         output->insert(output->end(), buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(produced));
 
         if (result == Z_STREAM_END) {
-            return doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string>::success(output);
+            return doof::Success<std::shared_ptr<std::vector<uint8_t>>>{output};
         }
         if (result != Z_OK) {
             std::string message = "inflate failed";
@@ -120,12 +118,10 @@ inline doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string> inflateR
                 message += " with zlib code ";
                 message += std::to_string(result);
             }
-            return doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string>::failure(message);
+            return doof::Failure<std::string>{message};
         }
         if (stream.avail_in == 0 && produced == 0) {
-            return doof::Result<std::shared_ptr<std::vector<uint8_t>>, std::string>::failure(
-                "inflate failed: truncated input"
-            );
+            return doof::Failure<std::string>{"inflate failed: truncated input"};
         }
     }
 }
