@@ -7,14 +7,14 @@ function bytes(text: string): readonly byte[] {
   return builder.build()
 }
 
-function assertBytes(actual: readonly byte[], expected: readonly byte[]): void {
+function assertBytes(actual: readonly byte[], expected: readonly byte[]): none {
   assert(actual.length == expected.length, "expected byte lengths to match")
   for index of 0..<actual.length {
     assert(actual[index] == expected[index], "expected bytes to match")
   }
 }
 
-export function testRawDeflateRoundTrips(): void {
+export function testRawDeflateRoundTrips(): none {
   input := bytes("hello raw deflate\nhello raw deflate\n")
   compressed := deflate(input)
   inflated := try! inflate(compressed)
@@ -23,7 +23,7 @@ export function testRawDeflateRoundTrips(): void {
   assertBytes(inflated, input)
 }
 
-export function testWriteAndReadZipArchive(): void {
+export function testWriteAndReadZipArchive(): none {
   payload := bytes("hello zip\nhello zip\n")
   archive := writeZip([
     ZipEntry {
@@ -55,7 +55,7 @@ export function testWriteAndReadZipArchive(): void {
   assertBytes(entries[2].data, bytes("stored"))
 }
 
-export function testReadZipRejectsInvalidInput(): void {
+export function testReadZipRejectsInvalidInput() {
   invalid := readZip(bytes("not a zip"))
   assert(invalid.isFailure(), "expected invalid zip input to fail")
 }

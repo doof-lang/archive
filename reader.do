@@ -13,7 +13,7 @@ function entryKindForName(name: string): ArchiveEntryKind {
   return .File
 }
 
-function requireRemaining(reader: BlobReader, length: long, context: string): Result<void, string> {
+function requireRemaining(reader: BlobReader, length: long, context: string): Result<none, string> {
   if reader.remaining() < length {
     return Failure { error: "zip read failed: truncated " + context }
   }

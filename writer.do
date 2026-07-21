@@ -15,7 +15,7 @@ function encodedName(name: string): readonly byte[] {
   return builder.build()
 }
 
-function writeLocalHeader(builder: BlobBuilder, entry: ZipEntry, nameBytes: readonly byte[], compressed: readonly byte[]): void {
+function writeLocalHeader(builder: BlobBuilder, entry: ZipEntry, nameBytes: readonly byte[], compressed: readonly byte[]): none {
   builder.writeUnsignedInt(LOCAL_FILE_HEADER_SIGNATURE)
   builder.writeUnsignedShort(ZIP_VERSION_NEEDED)
   builder.writeUnsignedShort(ZIP_UTF8_FLAG)
@@ -30,7 +30,7 @@ function writeLocalHeader(builder: BlobBuilder, entry: ZipEntry, nameBytes: read
   builder.writeBytes(nameBytes)
 }
 
-function writeCentralHeader(builder: BlobBuilder, entry: ZipEntry, nameBytes: readonly byte[], localHeaderOffset: long): void {
+function writeCentralHeader(builder: BlobBuilder, entry: ZipEntry, nameBytes: readonly byte[], localHeaderOffset: long): none {
   builder.writeUnsignedInt(CENTRAL_DIRECTORY_SIGNATURE)
   builder.writeUnsignedShort(ZIP_VERSION_MADE_BY)
   builder.writeUnsignedShort(ZIP_VERSION_NEEDED)
