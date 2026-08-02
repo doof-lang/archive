@@ -7,7 +7,7 @@ readonly CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
 readonly END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50L
 readonly ZIP_VERSION_NEEDED = 20
 readonly ZIP_VERSION_MADE_BY = 20
-readonly ZIP_UTF8_FLAG = 1 << 11
+readonly ZIP_UTF8_FLAG = 0x800
 
 function encodedName(name: string): readonly byte[] {
   builder := BlobBuilder()
