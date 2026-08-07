@@ -1,5 +1,5 @@
 import { BlobBuilder } from "std/blob"
-import { crc32, deflate } from "./native"
+import { crc32, deflateRaw as deflate } from "std/gzip"
 import { ArchiveEntryKind, ZipCompression, ZipEntry } from "./types"
 
 readonly LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L

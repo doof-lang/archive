@@ -1,4 +1,6 @@
-export { ArchiveEntryKind, ZipCompression, ZipEntry } from "./types"
-export { crc32, deflate, inflate } from "./native"
+export { ArchiveEntryKind, TarArchive, TarEntry, TarEntryKind, TarWriteEntry, ZipCompression, ZipEntry } from "./types"
+export { crc32, deflateRaw as deflate, inflateRaw as inflate } from "std/gzip"
 export { readZip } from "./reader"
 export { writeZip } from "./writer"
+export { readTarBlob, readTarFile } from "./tar_reader"
+export { writeTarBlob, writeTarFile } from "./tar_writer"

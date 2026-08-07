@@ -1,5 +1,5 @@
 import { BlobReader } from "std/blob"
-import { crc32, inflate } from "./native"
+import { crc32, inflateRaw as inflate } from "std/gzip"
 import { ArchiveEntryKind, CentralDirectoryEntry, ZipCompression, ZipEntry } from "./types"
 
 readonly LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
