@@ -8,6 +8,7 @@ export enum ArchiveEntryKind {
 export enum TarEntryKind {
   File = 0,
   Directory = 1,
+  SymbolicLink = 2,
 }
 
 export enum ZipCompression {
@@ -42,6 +43,7 @@ export class TarEntry {
   readonly size: long
   readonly mode: int
   readonly mtime: Instant
+  readonly linkName: string = ""
 }
 
 export class TarArchive {
@@ -59,4 +61,5 @@ export class TarWriteEntry {
   readonly data: readonly byte[] = []
   readonly mode: int | none = none
   readonly mtime: Instant = Instant.EPOCH
+  readonly linkName: string = ""
 }

@@ -72,10 +72,10 @@ destination, passing those chunks through gzip encoding for `.tar.gz` paths.
 
 The reader accepts POSIX ustar archives and PAX `g` and `x` extended headers.
 Per-entry values override global values, which override base-header values. The
-`path` and `size` keys are supported; unknown PAX keys are ignored. Regular
-files and directories are returned. Unsupported entry types, malformed
-checksums or numbers, invalid UTF-8, truncated data, and invalid terminators
-return `Failure<string>`.
+`path`, `linkpath`, and `size` keys are supported; unknown PAX keys are ignored.
+Regular files, directories, and symbolic links are returned. Unsupported entry
+types, malformed checksums or numbers, invalid UTF-8, truncated data, and
+invalid terminators return `Failure<string>`.
 
 The writer produces deterministic PAX-compatible archives. Entries whose ASCII
 paths fit ustar use ordinary headers; long or non-ASCII paths automatically use
@@ -95,7 +95,7 @@ compressed := gzip(writeTarBlob(entries))
 archive := try! readTarBlob(try! gunzip(compressed))
 ```
 
-Streaming TAR input, symlinks, hard links, devices, FIFOs, sparse files, GNU
+Streaming TAR input, hard links, devices, FIFOs, sparse files, GNU
 long-name extensions, base-256 numeric fields, and filesystem extraction are
 not currently supported.
 
@@ -134,11 +134,12 @@ export class TarEntry {
   readonly size: long
   readonly mode: int
   readonly mtime: Instant
+  readonly linkName: string = ""
 }
 ```
 
 Describes an entry, its numeric POSIX mode, modification time, and content span
-inside `TarArchive.data`.
+inside `TarArchive.data`. For symbolic links, `linkName` contains the target.
 
 ### `TarEntryKind`
 
@@ -146,6 +147,7 @@ inside `TarArchive.data`.
 export enum TarEntryKind {
   File = 0,
   Directory = 1,
+  SymbolicLink = 2,
 }
 ```
 
@@ -174,11 +176,13 @@ export class TarWriteEntry {
   readonly data: readonly byte[] = []
   readonly mode: int | none = none
   readonly mtime: Instant = Instant.EPOCH
+  readonly linkName: string = ""
 }
 ```
 
-Input value for TAR writing. Directory payloads are written empty. A `none`
-mode selects `0644` for files and `0755` for directories.
+Input value for TAR writing. Directory and symbolic-link payloads are written
+empty. A `none` mode selects `0644` for files, `0755` for directories, and
+`0777` for symbolic links. Set `linkName` to the target of a symbolic link.
 
 ### `readTarBlob`
 

@@ -128,7 +128,14 @@ function ustarPath(path: string): UstarPath | none {
   return none
 }
 
-function buildHeader(path: UstarPath, size: long, mode: int, mtime: Instant, typeFlag: byte): readonly byte[] {
+function buildHeader(
+  path: UstarPath,
+  size: long,
+  mode: int,
+  mtime: Instant,
+  typeFlag: byte,
+  linkName: string = "",
+): readonly byte[] {
   builder := BlobBuilder()
   builder.writeZeroes(TAR_BLOCK_SIZE)
   writeTextAt(builder, 0L, path.name)
@@ -140,6 +147,7 @@ function buildHeader(path: UstarPath, size: long, mode: int, mtime: Instant, typ
   writeTextAt(builder, 148L, "        ")
   builder.setPosition(156L)
   builder.writeByte(typeFlag)
+  writeTextAt(builder, 157L, linkName)
   writeTextAt(builder, 257L, "ustar")
   builder.setPosition(262L)
   builder.writeByte(0)
@@ -204,8 +212,9 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
   for index of 0..<entries.length {
     entry := entries[index]
     isDirectory := entry.kind == TarEntryKind.Directory
-    payload: readonly byte[] := if isDirectory then [] else entry.data
-    let mode = if isDirectory then 493 else 420
+    isSymbolicLink := entry.kind == TarEntryKind.SymbolicLink
+    payload: readonly byte[] := if isDirectory || isSymbolicLink then [] else entry.data
+    let mode = if isSymbolicLink then 511 else if isDirectory then 493 else 420
     if entry.mode != none {
       mode = entry.mode!
     }
@@ -214,9 +223,11 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
     epochNanos := entry.mtime.toEpochNanos()
     epochSeconds := entry.mtime.toEpochSeconds()
     requiresPaxMtime := epochNanos < 0L || epochNanos % 1000000000L != 0L || epochSeconds > TAR_MAX_BASE_SIZE
+    linkPath := ustarPath(entry.linkName)
+    requiresPaxLinkPath := isSymbolicLink && (linkPath == none || linkPath!.prefix.length > 0)
 
     let headerPath = directPath
-    if directPath == none || requiresPaxSize || requiresPaxMtime {
+    if directPath == none || requiresPaxSize || requiresPaxMtime || requiresPaxLinkPath {
       let paxPayload: readonly byte[] = []
       paxBuilder := BlobBuilder()
       if directPath == none {
@@ -227,6 +238,9 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
       }
       if requiresPaxMtime {
         paxBuilder.writeBytes(paxRecord("mtime", paxMtime(entry.mtime)))
+      }
+      if requiresPaxLinkPath {
+        paxBuilder.writeBytes(paxRecord("linkpath", entry.linkName))
       }
       paxPayload = paxBuilder.build()
       paxName := "PaxHeaders/" + string(index)
@@ -239,8 +253,11 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
 
     storedSize := if requiresPaxSize then 0L else long(payload.length)
     storedMtime := if requiresPaxMtime then Instant.EPOCH else entry.mtime
-    typeFlag: byte := if isDirectory then 53 else 48
-    chunks.push(TarChunk { data: buildHeader(headerPath!, storedSize, mode, storedMtime, typeFlag) })
+    typeFlag: byte := if isDirectory then 53 else if isSymbolicLink then 50 else 48
+    storedLinkName := if isSymbolicLink && !requiresPaxLinkPath then entry.linkName else ""
+    chunks.push(TarChunk {
+      data: buildHeader(headerPath!, storedSize, mode, storedMtime, typeFlag, storedLinkName),
+    })
     appendPayload(chunks, payload)
   }
 

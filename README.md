@@ -40,6 +40,8 @@ Readers retain each entry's numeric mode and modification time as an
 `std/time.Instant`. Writers default to mode `0644` for files, `0755` for
 directories, and the Unix epoch; `mode` and `mtime` can be supplied explicitly.
 Fractional and pre-epoch modification times use the standard PAX `mtime` key.
+Symbolic links use `TarEntryKind.SymbolicLink` and expose their target through
+`linkName`; long targets use the standard PAX `linkpath` key.
 
 ## Exports
 

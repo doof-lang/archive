@@ -252,6 +252,29 @@ export function testTarModeAndPaxMtimeRoundTrip(): none {
   assert(archive.entries[1].mtime.equals(beforeEpoch), "expected pre-epoch PAX mtime")
 }
 
+export function testTarSymbolicLinksRoundTrip(): none {
+  longTarget := repeatText("../nested/", 15) + "target"
+  archive := try! readTarBlob(writeTarBlob([
+    TarWriteEntry {
+      name: "bin/tool",
+      kind: .SymbolicLink,
+      linkName: "../libexec/tool",
+    },
+    TarWriteEntry {
+      name: "bin/long-tool",
+      kind: .SymbolicLink,
+      linkName: longTarget,
+    },
+  ]))
+
+  assert(archive.entries.length == 2, "expected symbolic link entry count")
+  assert(archive.entries[0].kind == TarEntryKind.SymbolicLink, "expected symbolic link kind")
+  assert(archive.entries[0].linkName == "../libexec/tool", "expected ustar symbolic link target")
+  assert(archive.entries[0].size == 0L, "expected empty symbolic link payload")
+  assert(archive.entries[1].kind == TarEntryKind.SymbolicLink, "expected PAX symbolic link kind")
+  assert(archive.entries[1].linkName == longTarget, "expected PAX linkpath target")
+}
+
 export function testTarPaxPathsAndGlobalLocalPrecedence(): none {
   longPath := "root/" + repeatText("segment/", 20) + "héllo.txt"
   localPath := "local/" + repeatText("nested/", 20) + "válue.txt"
@@ -348,7 +371,7 @@ export function testTarRejectsMalformedAndUnsupportedArchives(): none {
   nonZeroTrailing := replaceByte(valid, valid.length - 1, 1)
   assert(readTarBlob(nonZeroTrailing).isFailure(), "expected non-zero TAR trailing data to fail")
 
-  unsupported := patchFirstHeaderType(valid, 50)
+  unsupported := patchFirstHeaderType(valid, 49)
   assert(readTarBlob(unsupported).isFailure(), "expected unsupported TAR type to fail")
 
   longPath := repeatText("long/", 30) + "fíle.txt"

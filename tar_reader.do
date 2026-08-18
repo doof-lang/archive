@@ -16,6 +16,8 @@ readonly TAR_MTIME_LENGTH = 12L
 readonly TAR_CHECKSUM_OFFSET = 148L
 readonly TAR_CHECKSUM_LENGTH = 8L
 readonly TAR_TYPE_OFFSET = 156L
+readonly TAR_LINK_NAME_OFFSET = 157L
+readonly TAR_LINK_NAME_LENGTH = 100L
 readonly TAR_MAGIC_OFFSET = 257L
 readonly TAR_PREFIX_OFFSET = 345L
 readonly TAR_PREFIX_LENGTH = 155L
@@ -334,6 +336,14 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
 
     pathValue := paxValue(localPax, globalPax, "path")
     resolvedName := if pathValue == none then baseName else pathValue!
+    try baseLinkName := readTextField(
+      data,
+      offset + TAR_LINK_NAME_OFFSET,
+      TAR_LINK_NAME_LENGTH,
+      "entry link name",
+    )
+    linkPathValue := paxValue(localPax, globalPax, "linkpath")
+    resolvedLinkName := if linkPathValue == none then baseLinkName else linkPathValue!
     sizeText := paxValue(localPax, globalPax, "size")
     let resolvedSize = baseSize
     if sizeText != none {
@@ -356,6 +366,8 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
     let kind = TarEntryKind.File
     if typeFlag == 53 {
       kind = TarEntryKind.Directory
+    } else if typeFlag == 50 {
+      kind = TarEntryKind.SymbolicLink
     } else if typeFlag != 0 && typeFlag != 48 {
       return Failure { error: "tar read failed: unsupported entry type " + string(typeFlag) }
     }
@@ -367,6 +379,7 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
       size: resolvedSize,
       mode: int(baseMode),
       mtime: resolvedMtime,
+      linkName: resolvedLinkName,
     })
     localPax = {}
     offset = resolvedNextOffset
