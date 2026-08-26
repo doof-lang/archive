@@ -32,6 +32,7 @@ function ioErrorText(error: IoError): string {
     IoError.InvalidPath -> "invalid path",
     IoError.Interrupted -> "interrupted",
     IoError.Other -> "other I/O error",
+    IoError.Unsupported -> "unsupported operation",
   }
 }
 
