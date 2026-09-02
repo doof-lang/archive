@@ -4,6 +4,9 @@
 deflate helpers for callers that need the compression primitive without a gzip
 or zlib container.
 
+For task-oriented examples, including seekable ZIP and TAR bundles containing
+independent `.tar.zst` artifacts, see the [archive cookbook](cookbook/README.md).
+
 The ZIP API uses simple entry value objects, similar to `std/fs` directory
 metadata. `readZip` returns `ZipEntry[]`; each entry includes its name, kind,
 sizes, CRC32, compression method, and uncompressed data.
@@ -55,8 +58,15 @@ stored without compression.
 deflated. Invalid, truncated, CRC-mismatched, or unsupported archives return a
 `Failure<string>`.
 
-Streaming archives, encrypted archives, ZIP64, and entries that use data
-descriptors are not currently supported.
+`scanZipFile` reads the end-of-central-directory record and central directory
+without reading ordinary entry payloads. It returns immutable `ZipFileEntry`
+metadata containing the local-header offset needed for direct access.
+`readZipEntry` seeks to one indexed member, reads only its compressed bytes,
+decompresses it when necessary, and verifies its uncompressed size and CRC-32.
+The indexed file must remain unchanged between scanning and reading.
+
+Streaming archives, encrypted archives, multi-disk archives, ZIP64, and entries
+that use data descriptors are not currently supported.
 
 ## TAR and PAX Support
 
@@ -69,6 +79,16 @@ copy is needed.
 parser. Paths ending in `.tar.gz` are gzip-decoded automatically. `writeTarFile`
 streams TAR headers, payloads, padding, and the terminator directly to the
 destination, passing those chunks through gzip encoding for `.tar.gz` paths.
+
+`scanTarFile` provides a seekable alternative for large plain TAR files. It
+reads each 512-byte header and any PAX metadata, skips ordinary payloads by
+their declared aligned size, and returns `TarEntry` offsets without retaining
+the archive. Pass one of those entries to `readTarEntry` to seek directly to
+and read only its payload. The indexed file must remain unchanged between the
+two calls.
+
+Seekable scanning and selective entry reads intentionally reject `.tar.gz`
+paths because compressed TAR streams do not preserve direct file offsets.
 
 The reader accepts POSIX ustar archives and PAX `g` and `x` extended headers.
 Per-entry values override global values, which override base-header values. The
@@ -123,6 +143,23 @@ export class ZipEntry {
 
 For input to `writeZip`, callers usually set `name`, `data`, and optionally
 `kind` or `compression`. Size and checksum fields are populated by `readZip`.
+
+### `ZipFileEntry`
+
+```doof
+export class ZipFileEntry {
+  readonly name: string
+  readonly kind: ArchiveEntryKind
+  readonly size: long
+  readonly compressedSize: long
+  readonly crc32: long
+  readonly compression: ZipCompression
+  readonly localHeaderOffset: long
+}
+```
+
+Immutable central-directory metadata returned by `scanZipFile`. It contains no
+payload bytes; pass it to `readZipEntry` to load and verify one entry.
 
 ### `TarEntry`
 
@@ -201,6 +238,26 @@ export function readTarFile(path: string): Result<TarArchive, string>
 Read a TAR file into a retained blob and index it. A `.tar.gz` suffix enables
 automatic gzip decoding.
 
+### `scanTarFile`
+
+```doof
+export function scanTarFile(path: string): Result<readonly TarEntry[], string>
+```
+
+Index a plain TAR file without reading ordinary entry payloads. Header checks,
+PAX handling, supported entry kinds, ordering, and failure behavior match
+`readTarBlob`.
+
+### `readTarEntry`
+
+```doof
+export function readTarEntry(path: string, entry: TarEntry): Result<readonly byte[], string>
+```
+
+Read exactly the payload byte range described by an entry returned from
+`scanTarFile`. This allocates only the selected payload. The source file must
+be unchanged and the returned payload must fit in a Doof byte array.
+
 ### `writeTarBlob`
 
 ```doof
@@ -233,6 +290,24 @@ export function writeZip(entries: readonly ZipEntry[]): readonly byte[]
 ```
 
 Write a complete ZIP archive.
+
+### `scanZipFile`
+
+```doof
+export function scanZipFile(path: string): Result<readonly ZipFileEntry[], string>
+```
+
+Index a local ZIP file by reading its end record and central directory without
+loading or decompressing ordinary entry payloads.
+
+### `readZipEntry`
+
+```doof
+export function readZipEntry(path: string, entry: ZipFileEntry): Result<readonly byte[], string>
+```
+
+Read and verify one entry returned by `scanZipFile`. Stored entries are returned
+directly; deflated entries are decompressed before size and CRC checks.
 
 ### `deflate`
 

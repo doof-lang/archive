@@ -26,14 +26,14 @@ export class ZipEntry {
   data: readonly byte[] = []
 }
 
-export class CentralDirectoryEntry {
-  name: string
-  kind: ArchiveEntryKind
-  size: long
-  compressedSize: long
-  crc32: long
-  compression: ZipCompression
-  localHeaderOffset: long
+export class ZipFileEntry {
+  readonly name: string
+  readonly kind: ArchiveEntryKind
+  readonly size: long
+  readonly compressedSize: long
+  readonly crc32: long
+  readonly compression: ZipCompression
+  readonly localHeaderOffset: long
 }
 
 export class TarEntry {

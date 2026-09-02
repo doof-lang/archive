@@ -40,7 +40,7 @@ function isGzipTarPath(path: string): bool {
   return path.length >= 7 && path.slice(path.length - 7) == ".tar.gz"
 }
 
-function isZeroRange(data: readonly byte[], offset: long, length: long): bool {
+export function isZeroRange(data: readonly byte[], offset: long, length: long): bool {
   if offset < 0L || length < 0L || offset > long(data.length) || length > long(data.length) - offset {
     return false
   }
@@ -65,7 +65,7 @@ function fieldEnd(data: readonly byte[], offset: long, length: long): long {
   return offset + length
 }
 
-function readTextField(data: readonly byte[], offset: long, length: long, context: string): Result<string, string> {
+export function readTextField(data: readonly byte[], offset: long, length: long, context: string): Result<string, string> {
   end := fieldEnd(data, offset, length)
   bytes := data.slice(int(offset), int(end))
   decoded := decodeUtf8(bytes) else {
@@ -74,7 +74,7 @@ function readTextField(data: readonly byte[], offset: long, length: long, contex
   return Success(decoded)
 }
 
-function parseOctalField(data: readonly byte[], offset: long, length: long, context: string): Result<long, string> {
+export function parseOctalField(data: readonly byte[], offset: long, length: long, context: string): Result<long, string> {
   let value = 0L
   let sawDigit = false
   let ended = false
@@ -121,7 +121,7 @@ function headerChecksum(data: readonly byte[], offset: long): long {
   return sum
 }
 
-function validateHeader(data: readonly byte[], offset: long): Result<none, string> {
+export function validateHeader(data: readonly byte[], offset: long): Result<none, string> {
   try storedChecksum := parseOctalField(data, offset + TAR_CHECKSUM_OFFSET, TAR_CHECKSUM_LENGTH, "checksum")
   if storedChecksum != headerChecksum(data, offset) {
     return Failure { error: "tar read failed: header checksum mismatch" }
@@ -138,7 +138,7 @@ function validateHeader(data: readonly byte[], offset: long): Result<none, strin
   return Success()
 }
 
-function readHeaderName(data: readonly byte[], offset: long): Result<string, string> {
+export function readHeaderName(data: readonly byte[], offset: long): Result<string, string> {
   try name := readTextField(data, offset + TAR_NAME_OFFSET, TAR_NAME_LENGTH, "entry name")
   try prefix := readTextField(data, offset + TAR_PREFIX_OFFSET, TAR_PREFIX_LENGTH, "entry prefix")
   if prefix.length > 0 && name.length > 0 {
@@ -150,7 +150,7 @@ function readHeaderName(data: readonly byte[], offset: long): Result<string, str
   return Success(name)
 }
 
-function parseDecimal(value: string, context: string): Result<long, string> {
+export function parseDecimal(value: string, context: string): Result<long, string> {
   if value.length == 0 {
     return Failure { error: "tar read failed: empty PAX " + context }
   }
@@ -169,7 +169,7 @@ function parseDecimal(value: string, context: string): Result<long, string> {
   return Success(result)
 }
 
-function parsePaxMtime(value: string): Result<Instant, string> {
+export function parsePaxMtime(value: string): Result<Instant, string> {
   if value.length == 0 {
     return Failure { error: "tar read failed: empty PAX mtime" }
   }
@@ -215,7 +215,7 @@ function parsePaxMtime(value: string): Result<Instant, string> {
   return Success(Instant.ofEpochNanos(epochNanos))
 }
 
-function parsePaxRecords(
+export function parsePaxRecords(
   data: readonly byte[],
   offset: long,
   size: long,
@@ -270,7 +270,7 @@ function parsePaxRecords(
   return Success()
 }
 
-function paxValue(local: Map<string, string>, global: Map<string, string>, key: string): string | none {
+export function paxValue(local: Map<string, string>, global: Map<string, string>, key: string): string | none {
   return case local.get(key) {
     found: Success -> found.value,
     _: Failure -> case global.get(key) {
@@ -280,7 +280,7 @@ function paxValue(local: Map<string, string>, global: Map<string, string>, key: 
   }
 }
 
-function alignedPayloadEnd(contentOffset: long, size: long, dataLength: long): Result<long, string> {
+export function alignedPayloadEnd(contentOffset: long, size: long, dataLength: long): Result<long, string> {
   if size < 0L || contentOffset < 0L || contentOffset > dataLength || size > dataLength - contentOffset {
     return Failure { error: "tar read failed: truncated entry payload" }
   }

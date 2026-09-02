@@ -5,6 +5,7 @@ Archive helpers for byte-oriented ZIP and TAR formats.
 ## Documentation
 
 - [Guide and API reference](docs/API.md) covers ZIP and TAR/PAX archive reading and writing plus raw deflate helpers.
+- [Cookbook](docs/cookbook/README.md) provides task-oriented recipes, including selective reads from ZIP or TAR bundles of `.tar.zst` module archives.
 - Tests can be run with `doof test archive`.
 
 ## Usage
@@ -22,6 +23,16 @@ archive := writeZip([
 entries := try! readZip(archive)
 ```
 
+Large ZIP files also support seekable metadata scans and selective entry
+decompression:
+
+```doof
+import { readZipEntry, scanZipFile } from "std/archive"
+
+entries := try! scanZipFile("stdlib.zip")
+moduleBytes := try! readZipEntry("stdlib.zip", entries[0])
+```
+
 TAR supports both blobs and files. Parsed entries retain spans into the
 original archive instead of eagerly copying file payloads:
 
@@ -34,6 +45,19 @@ blob := writeTarBlob([
 archive := try! readTarBlob(blob)
 content := archive.entryData(archive.entries[0])
 ```
+
+Large uncompressed TAR files can instead be scanned without retaining their
+payloads, then read selectively by indexed byte range:
+
+```doof
+import { readTarEntry, scanTarFile } from "std/archive"
+
+entries := try! scanTarFile("stdlib.tar")
+moduleBytes := try! readTarEntry("stdlib.tar", entries[0])
+```
+
+This seekable API supports plain TAR files only. Compressed TAR files must be
+decoded before parsing and cannot provide direct entry-range reads.
 
 TAR entries use `TarEntryKind`, independently of ZIP's `ArchiveEntryKind`.
 Readers retain each entry's numeric mode and modification time as an
@@ -53,6 +77,16 @@ Read a complete ZIP archive from memory.
 
 Write a complete ZIP archive to memory.
 
+### `scanZipFile(path: string): Result<readonly ZipFileEntry[], string>`
+
+Read a ZIP file's central directory without loading or decompressing ordinary
+entry payloads.
+
+### `readZipEntry(path: string, entry: ZipFileEntry): Result<readonly byte[], string>`
+
+Seek to, decompress, size-check, and CRC-check one entry returned by
+`scanZipFile`.
+
 ### `deflate(data: readonly byte[]): readonly byte[]`
 
 Compress bytes with raw deflate, without a zlib or gzip wrapper.
@@ -68,6 +102,16 @@ Index a complete TAR archive while retaining entry payloads as spans into the in
 ### `readTarFile(path: string): Result<TarArchive, string>`
 
 Read and index a TAR file. Paths ending in `.tar.gz` are gzip-decoded automatically.
+
+### `scanTarFile(path: string): Result<readonly TarEntry[], string>`
+
+Index a plain TAR file by reading headers and PAX metadata while skipping
+ordinary entry payloads.
+
+### `readTarEntry(path: string, entry: TarEntry): Result<readonly byte[], string>`
+
+Seek to and read one entry returned by `scanTarFile`. The file must remain
+unchanged between scanning and reading.
 
 ### `writeTarBlob(entries: readonly TarWriteEntry[]): readonly byte[]`
 

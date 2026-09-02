@@ -1,6 +1,6 @@
 import { BlobReader } from "std/blob"
 import { crc32, inflateRaw as inflate } from "std/gzip"
-import { ArchiveEntryKind, CentralDirectoryEntry, ZipCompression, ZipEntry } from "./types"
+import { ArchiveEntryKind, ZipCompression, ZipEntry, ZipFileEntry } from "./types"
 
 readonly LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50L
 readonly CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50L
@@ -13,7 +13,13 @@ function entryKindForName(name: string): ArchiveEntryKind {
   return .File
 }
 
-function requireRemaining(reader: BlobReader, length: long, context: string): Result<none, string> {
+export class ZipDirectoryInfo {
+  readonly entryCount: int
+  readonly offset: long
+  readonly size: long
+}
+
+export function requireRemaining(reader: BlobReader, length: long, context: string): Result<none, string> {
   if reader.remaining() < length {
     return Failure { error: "zip read failed: truncated " + context }
   }
@@ -30,7 +36,7 @@ function readCompression(method: int): Result<ZipCompression, string> {
   return Failure { error: "zip read failed: unsupported compression method " + string(method) }
 }
 
-function readCentralDirectoryEntry(reader: BlobReader): Result<CentralDirectoryEntry, string> {
+export function readCentralDirectoryEntry(reader: BlobReader): Result<ZipFileEntry, string> {
   try requireRemaining(reader, 46L, "central directory entry")
   signature := reader.readUnsignedInt()
   if signature != CENTRAL_DIRECTORY_SIGNATURE {
@@ -59,7 +65,7 @@ function readCentralDirectoryEntry(reader: BlobReader): Result<CentralDirectoryE
   }
 
   try compression := readCompression(method)
-  return Success(CentralDirectoryEntry {
+  return Success(ZipFileEntry {
     name,
     kind: entryKindForName(name),
     size,
@@ -70,7 +76,7 @@ function readCentralDirectoryEntry(reader: BlobReader): Result<CentralDirectoryE
   })
 }
 
-function findEndOfCentralDirectory(data: readonly byte[]): Result<long, string> {
+export function findEndOfCentralDirectory(data: readonly byte[]): Result<long, string> {
   if data.length < 22 {
     return Failure { error: "zip read failed: input is too small" }
   }
@@ -80,23 +86,68 @@ function findEndOfCentralDirectory(data: readonly byte[]): Result<long, string> 
   for distance of 0..<lastStart - lowerBound + 1 {
     index := lastStart - distance
     if data[index] == 0x50 && data[index + 1] == 0x4b && data[index + 2] == 0x05 && data[index + 3] == 0x06 {
-      return Success(long(index))
+      commentLength := int(data[index + 20]) + int(data[index + 21]) * 256
+      if index + 22 + commentLength == data.length {
+        return Success(long(index))
+      }
     }
   }
 
   return Failure { error: "zip read failed: end of central directory not found" }
 }
 
-function unpack(compressed: readonly byte[], compression: ZipCompression): Result<readonly byte[], string> {
+export function readZipDirectoryInfo(
+  data: readonly byte[],
+  eocdOffset: long,
+  dataOffset: long,
+  archiveSize: long,
+): Result<ZipDirectoryInfo, string> {
+  reader := BlobReader(data)
+  reader.setPosition(eocdOffset)
+  try requireRemaining(reader, 22L, "end of central directory")
+
+  signature := reader.readUnsignedInt()
+  if signature != END_OF_CENTRAL_DIRECTORY_SIGNATURE {
+    return Failure { error: "zip read failed: invalid end of central directory signature" }
+  }
+
+  diskNumber := reader.readUnsignedShort()
+  centralDirectoryDisk := reader.readUnsignedShort()
+  diskEntryCount := reader.readUnsignedShort()
+  entryCount := reader.readUnsignedShort()
+  centralDirectorySize := reader.readUnsignedInt()
+  centralDirectoryOffset := reader.readUnsignedInt()
+  commentLength := reader.readUnsignedShort()
+
+  if diskNumber != 0 || centralDirectoryDisk != 0 || diskEntryCount != entryCount {
+    return Failure { error: "zip read failed: multi-disk archives are not supported" }
+  }
+  if eocdOffset + 22L + long(commentLength) != long(data.length) ||
+     dataOffset + eocdOffset + 22L + long(commentLength) != archiveSize {
+    return Failure { error: "zip read failed: truncated archive comment" }
+  }
+
+  absoluteEocdOffset := dataOffset + eocdOffset
+  if centralDirectoryOffset + centralDirectorySize > absoluteEocdOffset {
+    return Failure { error: "zip read failed: central directory is out of bounds" }
+  }
+
+  return Success(ZipDirectoryInfo {
+    entryCount,
+    offset: centralDirectoryOffset,
+    size: centralDirectorySize,
+  })
+}
+
+export function unpackZipPayload(compressed: readonly byte[], compression: ZipCompression): Result<readonly byte[], string> {
   if compression == .Store {
     return Success(compressed)
   }
   return inflate(compressed)
 }
 
-function readEntryPayload(data: readonly byte[], central: CentralDirectoryEntry): Result<ZipEntry, string> {
-  reader := BlobReader(data)
-  reader.setPosition(central.localHeaderOffset)
+export function zipPayloadOffset(header: readonly byte[], localHeaderOffset: long): Result<long, string> {
+  reader := BlobReader(header)
   try requireRemaining(reader, 30L, "local file header")
 
   signature := reader.readUnsignedInt()
@@ -107,7 +158,25 @@ function readEntryPayload(data: readonly byte[], central: CentralDirectoryEntry)
   reader.skip(22L)
   nameLength := reader.readUnsignedShort()
   extraLength := reader.readUnsignedShort()
-  payloadOffset := central.localHeaderOffset + 30L + long(nameLength + extraLength)
+  return Success(localHeaderOffset + 30L + long(nameLength + extraLength))
+}
+
+export function validateZipPayload(payload: readonly byte[], central: ZipFileEntry): Result<none, string> {
+  if long(payload.length) != central.size {
+    return Failure { error: "zip read failed: uncompressed size mismatch for " + central.name }
+  }
+  if crc32(payload) != central.crc32 {
+    return Failure { error: "zip read failed: crc mismatch for " + central.name }
+  }
+  return Success()
+}
+
+function readEntryPayload(data: readonly byte[], central: ZipFileEntry): Result<ZipEntry, string> {
+  if central.localHeaderOffset > long(data.length) - 30L {
+    return Failure { error: "zip read failed: truncated local file header" }
+  }
+  header := data.slice(int(central.localHeaderOffset), int(central.localHeaderOffset + 30L))
+  try payloadOffset := zipPayloadOffset(header, central.localHeaderOffset)
   payloadEnd := payloadOffset + central.compressedSize
 
   if payloadEnd > long(data.length) {
@@ -115,14 +184,8 @@ function readEntryPayload(data: readonly byte[], central: CentralDirectoryEntry)
   }
 
   compressed := data.slice(int(payloadOffset), int(payloadEnd))
-  try payload := unpack(compressed, central.compression)
-
-  if long(payload.length) != central.size {
-    return Failure { error: "zip read failed: uncompressed size mismatch for " + central.name }
-  }
-  if crc32(payload) != central.crc32 {
-    return Failure { error: "zip read failed: crc mismatch for " + central.name }
-  }
+  try payload := unpackZipPayload(compressed, central.compression)
+  try validateZipPayload(payload, central)
 
   return Success(ZipEntry {
     name: central.name,
@@ -137,32 +200,17 @@ function readEntryPayload(data: readonly byte[], central: CentralDirectoryEntry)
 
 export function readZip(data: readonly byte[]): Result<ZipEntry[], string> {
   try eocdOffset := findEndOfCentralDirectory(data)
+  try directory := readZipDirectoryInfo(data, eocdOffset, 0L, long(data.length))
+
   reader := BlobReader(data)
-  reader.setPosition(eocdOffset)
-
-  signature := reader.readUnsignedInt()
-  if signature != END_OF_CENTRAL_DIRECTORY_SIGNATURE {
-    return Failure { error: "zip read failed: invalid end of central directory signature" }
-  }
-
-  reader.skip(6L)
-  entryCount := reader.readUnsignedShort()
-  centralDirectorySize := reader.readUnsignedInt()
-  centralDirectoryOffset := reader.readUnsignedInt()
-  commentLength := reader.readUnsignedShort()
-
-  if eocdOffset + 22L + long(commentLength) > long(data.length) {
-    return Failure { error: "zip read failed: truncated archive comment" }
-  }
-  if centralDirectoryOffset + centralDirectorySize > eocdOffset {
-    return Failure { error: "zip read failed: central directory is out of bounds" }
-  }
-
-  reader.setPosition(centralDirectoryOffset)
-  let centralEntries: CentralDirectoryEntry[] = []
-  for index of 0..<entryCount {
+  reader.setPosition(directory.offset)
+  let centralEntries: ZipFileEntry[] = []
+  for index of 0..<directory.entryCount {
     try entry := readCentralDirectoryEntry(reader)
     centralEntries.push(entry)
+  }
+  if reader.getPosition() > directory.offset + directory.size {
+    return Failure { error: "zip read failed: central directory entries exceed declared size" }
   }
 
   let entries: ZipEntry[] = []
