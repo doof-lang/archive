@@ -33,6 +33,10 @@ function ioErrorText(error: IoError): string {
     IoError.Interrupted -> "interrupted",
     IoError.Other -> "other I/O error",
     IoError.Unsupported -> "unsupported operation",
+    IoError.InvalidArgument -> "invalid argument",
+    IoError.Closed -> "closed",
+    IoError.UnexpectedEof -> "unexpected end of file",
+    IoError.WouldBlock -> "operation would block",
   }
 }
 
