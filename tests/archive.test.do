@@ -168,7 +168,7 @@ function paxSizePayload(totalLength: int, size: int): readonly byte[] {
 export function testRawDeflateRoundTrips(): none {
   input := bytes("hello raw deflate\nhello raw deflate\n")
   compressed := deflate(input)
-  inflated := try! inflate(compressed)
+  inflated := inflate(compressed)!
 
   assert(compressed.length > 0, "expected deflate to produce output")
   assertBytes(inflated, input)
@@ -194,7 +194,7 @@ export function testWriteAndReadZipArchive(): none {
     },
   ])
 
-  entries := try! readZip(archive)
+  entries := readZip(archive)!
   assert(entries.length == 3, "expected zip entry count")
   assert(entries[0].name == "docs/", "expected directory name")
   assert(entries[0].kind == ArchiveEntryKind.Directory, "expected directory kind")
@@ -219,10 +219,10 @@ export function testZipFileScanningAndSelectiveEntryReads(): none {
     ZipEntry { name: "docs/readme.txt", data: bytes("repeated repeated repeated"), compression: .Deflate },
     ZipEntry { name: "modules/archive.tar.zst", data: bytes("newer stored frame"), compression: .Store },
   ]), "selective ZIP fixture")
-  try! writeBlob(path, archiveBytes)
+  writeBlob(path, archiveBytes)!
 
-  scanned := try! scanZipFile(path)
-  eager := try! readZip(archiveBytes)
+  scanned := scanZipFile(path)!
+  eager := readZip(archiveBytes)!
   assert(scanned.length == eager.length, "expected seekable ZIP entry count")
   for index of 0..<scanned.length {
     assert(scanned[index].name == eager[index].name, "expected scanned ZIP entry name")
@@ -235,17 +235,17 @@ export function testZipFileScanningAndSelectiveEntryReads(): none {
 
   assert(scanned[1].compression == ZipCompression.Store, "expected pre-compressed member to remain stored")
   assert(scanned[2].compression == ZipCompression.Deflate, "expected selectively deflated member")
-  assertBytes(try! readZipEntry(path, scanned[0]), [])
-  assertBytes(try! readZipEntry(path, scanned[1]), bytes("stored zstd frame"))
-  assertBytes(try! readZipEntry(path, scanned[2]), bytes("repeated repeated repeated"))
-  assertBytes(try! readZipEntry(path, scanned[3]), bytes("newer stored frame"))
+  assertBytes(readZipEntry(path, scanned[0])!, [])
+  assertBytes(readZipEntry(path, scanned[1])!, bytes("stored zstd frame"))
+  assertBytes(readZipEntry(path, scanned[2])!, bytes("repeated repeated repeated"))
+  assertBytes(readZipEntry(path, scanned[3])!, bytes("newer stored frame"))
 
-  try! writeBlob(path, archiveBytes.slice(0, int(scanned[3].localHeaderOffset + 30L)))
+  writeBlob(path, archiveBytes.slice(0, int(scanned[3].localHeaderOffset + 30L)))!
   assert(readZipEntry(path, scanned[3]).isFailure(), "expected stale out-of-range ZIP entry read to fail")
 
-  try! writeBlob(path, writeZip([]))
-  assert((try! scanZipFile(path)).length == 0, "expected empty ZIP file scan")
-  try! remove(path)
+  writeBlob(path, writeZip([]))!
+  assert((scanZipFile(path)!).length == 0, "expected empty ZIP file scan")
+  remove(path)!
 }
 
 export function testZipFileScanAndSelectiveReadRejectInvalidData(): none {
@@ -253,24 +253,24 @@ export function testZipFileScanAndSelectiveReadRejectInvalidData(): none {
   archiveBytes := writeZip([
     ZipEntry { name: "stored.bin", data: bytes("payload"), compression: .Store },
   ])
-  try! writeBlob(path, archiveBytes)
-  entry := (try! scanZipFile(path))[0]
+  writeBlob(path, archiveBytes)!
+  entry := (scanZipFile(path)!)[0]
 
   payloadOffset := int(entry.localHeaderOffset + 30L + long(entry.name.length))
   corrupted := replaceByte(archiveBytes, payloadOffset, 0)
-  try! writeBlob(path, corrupted)
+  writeBlob(path, corrupted)!
   assert(readZipEntry(path, entry).isFailure(), "expected selective ZIP read to verify CRC")
 
-  try! writeBlob(path, bytes("not a zip"))
+  writeBlob(path, bytes("not a zip"))!
   assert(scanZipFile(path).isFailure(), "expected seekable ZIP scan to reject invalid input")
-  try! remove(path)
+  remove(path)!
 
   missingPath := join([tempDirectory(), "std-archive-zip-scan-missing.zip"])
   assert(scanZipFile(missingPath).isFailure(), "expected missing ZIP scan to fail")
 }
 
 export function testTarBlobRoundTripsWithoutEagerPayloadCopies(): none {
-  emptyArchive := try! readTarBlob(writeTarBlob([]))
+  emptyArchive := readTarBlob(writeTarBlob([]))!
   assert(emptyArchive.entries.length == 0, "expected empty TAR archive")
 
   payload := bytes("hello tar")
@@ -286,7 +286,7 @@ export function testTarBlobRoundTripsWithoutEagerPayloadCopies(): none {
     TarWriteEntry { name: "docs/hello.txt", data: bytes("duplicate") },
   ])
 
-  archive := try! readTarBlob(archiveBytes)
+  archive := readTarBlob(archiveBytes)!
   assert(archive.data.length == archiveBytes.length, "expected retained tar blob")
   assert(archive.entries.length == 4, "expected tar entry count")
   assert(archive.entries[0].kind == TarEntryKind.Directory, "expected tar directory")
@@ -310,10 +310,10 @@ export function testTarBlobRoundTripsWithoutEagerPayloadCopies(): none {
 export function testTarModeAndPaxMtimeRoundTrip(): none {
   fractional := Instant.ofEpochNanos(1234567890123L)
   beforeEpoch := Instant.ofEpochNanos(-1500000000L)
-  archive := try! readTarBlob(writeTarBlob([
+  archive := readTarBlob(writeTarBlob([
     TarWriteEntry { name: "fractional", mode: 448, mtime: fractional },
     TarWriteEntry { name: "before-epoch", mtime: beforeEpoch },
-  ]))
+  ]))!
 
   assert(archive.entries[0].mode == 448, "expected explicit tar mode")
   assert(archive.entries[0].mtime.equals(fractional), "expected fractional PAX mtime")
@@ -322,7 +322,7 @@ export function testTarModeAndPaxMtimeRoundTrip(): none {
 
 export function testTarSymbolicLinksRoundTrip(): none {
   longTarget := repeatText("../nested/", 15) + "target"
-  archive := try! readTarBlob(writeTarBlob([
+  archive := readTarBlob(writeTarBlob([
     TarWriteEntry {
       name: "bin/tool",
       kind: .SymbolicLink,
@@ -333,7 +333,7 @@ export function testTarSymbolicLinksRoundTrip(): none {
       kind: .SymbolicLink,
       linkName: longTarget,
     },
-  ]))
+  ]))!
 
   assert(archive.entries.length == 2, "expected symbolic link entry count")
   assert(archive.entries[0].kind == TarEntryKind.SymbolicLink, "expected symbolic link kind")
@@ -349,7 +349,7 @@ export function testTarPaxPathsAndGlobalLocalPrecedence(): none {
   payload := bytes("pax payload")
 
   longArchive := writeTarBlob([TarWriteEntry { name: longPath, data: payload }])
-  parsedLong := try! readTarBlob(longArchive)
+  parsedLong := readTarBlob(longArchive)!
   assert(parsedLong.entries.length == 1, "expected PAX metadata to stay internal")
   assert(parsedLong.entries[0].name == longPath, "expected PAX UTF-8 path")
   assert(parsedLong.entries[0].contentOffset == 1536L, "expected payload after PAX metadata and file header")
@@ -360,12 +360,12 @@ export function testTarPaxPathsAndGlobalLocalPrecedence(): none {
   combined := BlobBuilder()
   combined.writeBytes(globalPrefix)
   combined.writeBytes(localArchive)
-  parsedCombined := try! readTarBlob(combined.build())
+  parsedCombined := readTarBlob(combined.build())!
   assert(parsedCombined.entries.length == 1, "expected global and local PAX headers to stay internal")
   assert(parsedCombined.entries[0].name == localPath, "expected local PAX path to override global path")
 
   unknownKey := replaceFirstPaxPathKey(longArchive)
-  parsedUnknown := try! readTarBlob(unknownKey)
+  parsedUnknown := readTarBlob(unknownKey)!
   assert(parsedUnknown.entries[0].name == "PaxEntry/0", "expected unknown PAX keys to be ignored")
 
   let paxPayloadLength = 0
@@ -379,7 +379,7 @@ export function testTarPaxPathsAndGlobalLocalPrecedence(): none {
   replacedPayload.setPosition(512L)
   replacedPayload.writeBytes(sizePayload)
   sizeOverrideArchive := patchHeaderSize(replacedPayload.build(), 1024, 0L)
-  parsedSizeOverride := try! readTarBlob(sizeOverrideArchive)
+  parsedSizeOverride := readTarBlob(sizeOverrideArchive)!
   assert(parsedSizeOverride.entries[0].size == long(payload.length), "expected PAX size to override base header")
   assertBytes(parsedSizeOverride.entryData(parsedSizeOverride.entries[0]), payload)
 }
@@ -392,26 +392,26 @@ export function testTarFileEntryPointsMatchBlobEntryPoints(): none {
     TarWriteEntry { name: "aligned.bin", data: writeTarBlob([]).slice(0, 512) },
   ]
   expected := writeTarBlob(entries)
-  try! writeTarFile(path, entries)
-  assertBytes(try! readBlob(path), expected)
-  fromFile := try! readTarFile(path)
+  writeTarFile(path, entries)!
+  assertBytes(readBlob(path)!, expected)
+  fromFile := readTarFile(path)!
   assert(fromFile.entries.length == 2, "expected direct file TAR entries")
   assertBytes(fromFile.entryData(fromFile.entries[0]), bytes("alpha"))
-  try! remove(path)
+  remove(path)!
 
-  try! writeTarFile(gzipPath, entries)
-  compressed := try! readBlob(gzipPath)
+  writeTarFile(gzipPath, entries)!
+  compressed := readBlob(gzipPath)!
   assert(compressed.length > 2 && compressed[0] == 31 && compressed[1] == 139, "expected .tar.gz gzip header")
-  fromGzipFile := try! readTarFile(gzipPath)
+  fromGzipFile := readTarFile(gzipPath)!
   assert(fromGzipFile.entries.length == 2, "expected .tar.gz entries")
   assertBytes(fromGzipFile.entryData(fromGzipFile.entries[0]), bytes("alpha"))
   assertBytes(fromGzipFile.entryData(fromGzipFile.entries[1]), entries[1].data)
-  try! remove(gzipPath)
+  remove(gzipPath)!
 
-  try! writeTarFile("build/tar-interop.tar", readonly [
+  writeTarFile("build/tar-interop.tar", readonly [
     TarWriteEntry { name: "interop/", kind: .Directory },
     TarWriteEntry { name: "interop/" + repeatText("long/", 25) + "héllo.txt", data: bytes("from doof") },
-  ])
+  ])!
 
   readFailure := readTarFile(join([tempDirectory(), "std-archive-missing.tar"]))
   assert(readFailure.isFailure(), "expected missing TAR file read to fail")
@@ -430,10 +430,10 @@ export function testTarFileScanningAndSelectiveEntryReads(): none {
     TarWriteEntry { name: longPath, data: bytes("archive compressed bytes") },
     TarWriteEntry { name: "modules/blob.tar.zst", data: bytes("newer blob bytes") },
   ]
-  try! writeTarFile(path, entries)
+  writeTarFile(path, entries)!
 
-  scanned := try! scanTarFile(path)
-  retained := try! readTarFile(path)
+  scanned := scanTarFile(path)!
+  retained := readTarFile(path)!
   assert(scanned.length == entries.length, "expected seekable TAR entry count")
   assert(scanned.length == retained.entries.length, "expected file and blob scanners to agree")
   for index of 0..<scanned.length {
@@ -446,29 +446,29 @@ export function testTarFileScanningAndSelectiveEntryReads(): none {
   }
 
   assert(scanned[2].name == longPath, "expected scan to apply PAX path metadata")
-  assertBytes(try! readTarEntry(path, scanned[0]), [])
-  assertBytes(try! readTarEntry(path, scanned[1]), bytes("blob compressed bytes"))
-  assertBytes(try! readTarEntry(path, scanned[2]), bytes("archive compressed bytes"))
-  assertBytes(try! readTarEntry(path, scanned[3]), bytes("newer blob bytes"))
+  assertBytes(readTarEntry(path, scanned[0])!, [])
+  assertBytes(readTarEntry(path, scanned[1])!, bytes("blob compressed bytes"))
+  assertBytes(readTarEntry(path, scanned[2])!, bytes("archive compressed bytes"))
+  assertBytes(readTarEntry(path, scanned[3])!, bytes("newer blob bytes"))
 
-  archiveBytes := try! readBlob(path)
-  try! writeBlob(path, archiveBytes.slice(0, int(scanned[3].contentOffset)))
+  archiveBytes := readBlob(path)!
+  writeBlob(path, archiveBytes.slice(0, int(scanned[3].contentOffset)))!
   assert(readTarEntry(path, scanned[3]).isFailure(), "expected stale out-of-range TAR entry read to fail")
-  try! remove(path)
+  remove(path)!
 }
 
 export function testTarFileScanRejectsCompressedAndMalformedArchives(): none {
   gzipPath := join([tempDirectory(), "std-archive-tar-scan-rejected.tar.gz"])
   malformedPath := join([tempDirectory(), "std-archive-tar-scan-malformed.tar"])
-  try! writeTarFile(gzipPath, [TarWriteEntry { name: "file", data: bytes("payload") }])
+  writeTarFile(gzipPath, [TarWriteEntry { name: "file", data: bytes("payload") }])!
   assert(scanTarFile(gzipPath).isFailure(), "expected seekable scan to reject compressed TAR")
-  assert(readTarEntry(gzipPath, (try! readTarFile(gzipPath)).entries[0]).isFailure(), "expected selective read to reject compressed TAR")
-  try! remove(gzipPath)
+  assert(readTarEntry(gzipPath, (readTarFile(gzipPath)!).entries[0]).isFailure(), "expected selective read to reject compressed TAR")
+  remove(gzipPath)!
 
   malformed := replaceByte(writeTarBlob([TarWriteEntry { name: "file", data: bytes("payload") }]), 0, 120)
-  try! writeBlob(malformedPath, malformed)
+  writeBlob(malformedPath, malformed)!
   assert(scanTarFile(malformedPath).isFailure(), "expected seekable scan to validate TAR headers")
-  try! remove(malformedPath)
+  remove(malformedPath)!
 
   missingPath := join([tempDirectory(), "std-archive-tar-scan-missing.tar"])
   assert(scanTarFile(missingPath).isFailure(), "expected missing TAR scan to fail")
