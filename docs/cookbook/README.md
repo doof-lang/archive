@@ -41,7 +41,7 @@ zip := writeZip([
   },
 ])
 
-for entry of try! readZip(zip) {
+for entry of readZip(zip)! {
   println("${entry.name}: ${entry.size} bytes")
 }
 ```
@@ -74,7 +74,7 @@ function loadNamedZipEntry(path: string, name: string): Result<readonly byte[], 
   return readZipEntry(path, entry)
 }
 
-moduleBytes := try! loadNamedZipEntry("stdlib.zip", "modules/archive.tar.zst")
+moduleBytes := loadNamedZipEntry("stdlib.zip", "modules/archive.tar.zst")!
 ```
 
 Use `ZipCompression.Store` when writing payloads such as `.tar.zst`, PNG, or
@@ -101,7 +101,7 @@ tarBytes := writeTarBlob([
   },
 ])
 
-archive := try! readTarBlob(tarBytes)
+archive := readTarBlob(tarBytes)!
 source := archive.entryData(archive.entries[1])
 ```
 
@@ -123,11 +123,11 @@ entries := readonly [
   TarWriteEntry { name: "release/LICENSE", data: licenseBytes },
 ]
 
-try! writeTarFile("release.tar", entries)
-try! writeTarFile("release.tar.gz", entries)
+writeTarFile("release.tar", entries)!
+writeTarFile("release.tar.gz", entries)!
 
-plain := try! readTarFile("release.tar")
-compressed := try! readTarFile("release.tar.gz")
+plain := readTarFile("release.tar")!
+compressed := readTarFile("release.tar.gz")!
 ```
 
 `readTarFile` retains the full TAR in memory. For `.tar.gz`, that includes the
@@ -159,7 +159,7 @@ function loadNamedEntry(path: string, name: string): Result<readonly byte[], str
   return readTarEntry(path, entry)
 }
 
-moduleBytes := try! loadNamedEntry("stdlib.tar", "modules/archive.tar.zst")
+moduleBytes := loadNamedEntry("stdlib.tar", "modules/archive.tar.zst")!
 ```
 
 Keep the file unchanged between `scanTarFile` and `readTarEntry`; an entry is an

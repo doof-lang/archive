@@ -28,7 +28,7 @@ archive := writeZip([
   },
 ])
 
-entries := try! readZip(archive)
+entries := readZip(archive)!
 ```
 
 For TAR files, choose explicit blob or file entry points:
@@ -39,13 +39,13 @@ import { TarWriteEntry, readTarBlob, readTarFile, writeTarBlob, writeTarFile } f
 tarBlob := writeTarBlob([
   TarWriteEntry { name: "docs/hello.txt", data: bytes },
 ])
-archive := try! readTarBlob(tarBlob)
+archive := readTarBlob(tarBlob)!
 content := archive.entryData(archive.entries[0])
 
-try! writeTarFile("docs.tar", [
+writeTarFile("docs.tar", [
   TarWriteEntry { name: "docs/hello.txt", data: bytes },
-])
-fromFile := try! readTarFile("docs.tar")
+])!
+fromFile := readTarFile("docs.tar")!
 ```
 
 ## ZIP Support
@@ -112,7 +112,7 @@ with in-memory `.tar.gz` data:
 
 ```doof
 compressed := gzip(writeTarBlob(entries))
-archive := try! readTarBlob(try! gunzip(compressed))
+archive := readTarBlob(gunzip(compressed)!)!
 ```
 
 Streaming TAR input, hard links, devices, FIFOs, sparse files, GNU

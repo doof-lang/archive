@@ -20,7 +20,7 @@ archive := writeZip([
   },
 ])
 
-entries := try! readZip(archive)
+entries := readZip(archive)!
 ```
 
 Large ZIP files also support seekable metadata scans and selective entry
@@ -29,8 +29,8 @@ decompression:
 ```doof
 import { readZipEntry, scanZipFile } from "std/archive"
 
-entries := try! scanZipFile("stdlib.zip")
-moduleBytes := try! readZipEntry("stdlib.zip", entries[0])
+entries := scanZipFile("stdlib.zip")!
+moduleBytes := readZipEntry("stdlib.zip", entries[0])!
 ```
 
 TAR supports both blobs and files. Parsed entries retain spans into the
@@ -42,7 +42,7 @@ import { TarEntryKind, TarWriteEntry, readTarBlob, writeTarBlob } from "std/arch
 blob := writeTarBlob([
   TarWriteEntry { name: "hello.txt", data: bytes, mode: 493 },
 ])
-archive := try! readTarBlob(blob)
+archive := readTarBlob(blob)!
 content := archive.entryData(archive.entries[0])
 ```
 
@@ -52,8 +52,8 @@ payloads, then read selectively by indexed byte range:
 ```doof
 import { readTarEntry, scanTarFile } from "std/archive"
 
-entries := try! scanTarFile("stdlib.tar")
-moduleBytes := try! readTarEntry("stdlib.tar", entries[0])
+entries := scanTarFile("stdlib.tar")!
+moduleBytes := readTarEntry("stdlib.tar", entries[0])!
 ```
 
 This seekable API supports plain TAR files only. Compressed TAR files must be
