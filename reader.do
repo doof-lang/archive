@@ -21,7 +21,7 @@ export class ZipDirectoryInfo {
 
 export function requireRemaining(reader: BlobReader, length: long, context: string): Result<none, string> {
   if reader.remaining() < length {
-    return Failure { error: "zip read failed: truncated " + context }
+    return Failure { error: "zip read failed: truncated ${context}" }
   }
   return Success()
 }
@@ -33,7 +33,7 @@ function readCompression(method: int): Result<ZipCompression, string> {
   if method == ZipCompression.Deflate.value {
     return Success(ZipCompression.Deflate)
   }
-  return Failure { error: "zip read failed: unsupported compression method " + string(method) }
+  return Failure { error: "zip read failed: unsupported compression method ${method}" }
 }
 
 export function readCentralDirectoryEntry(reader: BlobReader): Result<ZipFileEntry, string> {
@@ -163,10 +163,10 @@ export function zipPayloadOffset(header: readonly byte[], localHeaderOffset: lon
 
 export function validateZipPayload(payload: readonly byte[], central: ZipFileEntry): Result<none, string> {
   if long(payload.length) != central.size {
-    return Failure { error: "zip read failed: uncompressed size mismatch for " + central.name }
+    return Failure { error: "zip read failed: uncompressed size mismatch for ${central.name}" }
   }
   if crc32(payload) != central.crc32 {
-    return Failure { error: "zip read failed: crc mismatch for " + central.name }
+    return Failure { error: "zip read failed: crc mismatch for ${central.name}" }
   }
   return Success()
 }

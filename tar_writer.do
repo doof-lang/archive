@@ -78,7 +78,7 @@ function writeOctalAt(builder: BlobBuilder, offset: long, width: int, value: lon
   digits := octal(value)
   let padded = digits
   while padded.length < width - 1 {
-    padded = "0" + padded
+    padded = "0${padded}"
   }
   writeTextAt(builder, offset, padded)
   builder.writeByte(0)
@@ -95,7 +95,7 @@ function patchChecksum(header: readonly byte[]): readonly byte[] {
   digits := octal(checksum)
   let padded = digits
   while padded.length < 6 {
-    padded = "0" + padded
+    padded = "0${padded}"
   }
   writeTextAt(builder, 148L, padded)
   builder.writeByte(0)
@@ -162,10 +162,10 @@ function buildHeader(
 }
 
 function paxRecord(key: string, value: string): readonly byte[] {
-  body := key + "=" + value + "\n"
-  let length = encodeText("0 " + body).length
+  body := "${key}=${value}\n"
+  let length = encodeText("0 ${body}").length
   while true {
-    record := string(length) + " " + body
+    record := "${length} ${body}"
     actualLength := encodeText(record).length
     if actualLength == length {
       return encodeText(record)
@@ -186,9 +186,9 @@ function paxMtime(value: Instant): string {
   }
   fraction := string(remainder).padStart(9, '0').trimEnd('0')
   if nanos < 0L && seconds == 0L {
-    return "-0." + fraction
+    return "-0.${fraction}"
   }
-  return string(seconds) + "." + fraction
+  return "${seconds}.${fraction}"
 }
 
 function padding(size: long): readonly byte[] {
@@ -219,21 +219,19 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
     isDirectory := entry.kind == TarEntryKind.Directory
     isSymbolicLink := entry.kind == TarEntryKind.SymbolicLink
     payload: readonly byte[] := if isDirectory || isSymbolicLink then [] else entry.data
-    let mode = if isSymbolicLink then 511 else if isDirectory then 493 else 420
-    if entry.mode != none {
-      mode = entry.mode!
-    }
+    mode := entry.mode ?? (if isSymbolicLink then 511 else if isDirectory then 493 else 420)
     directPath := ustarPath(entry.name)
     requiresPaxSize := long(payload.length) > TAR_MAX_BASE_SIZE
     epochNanos := entry.mtime.toEpochNanos()
     epochSeconds := entry.mtime.toEpochSeconds()
     requiresPaxMtime := epochNanos < 0L || epochNanos % 1000000000L != 0L || epochSeconds > TAR_MAX_BASE_SIZE
     linkPath := ustarPath(entry.linkName)
-    requiresPaxLinkPath := isSymbolicLink && (linkPath == none || linkPath!.prefix.length > 0)
+    requiresPaxLinkPath := isSymbolicLink && linkPath?.prefix != ""
 
-    let headerPath = directPath
-    if directPath == none || requiresPaxSize || requiresPaxMtime || requiresPaxLinkPath {
-      let paxPayload: readonly byte[] = []
+    let headerPath = UstarPath { name: "PaxEntry/${index}", prefix: "" }
+    if path := directPath && !requiresPaxSize && !requiresPaxMtime && !requiresPaxLinkPath {
+      headerPath = path
+    } else {
       paxBuilder := BlobBuilder()
       if directPath == none {
         paxBuilder.writeBytes(paxRecord("path", entry.name))
@@ -247,13 +245,12 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
       if requiresPaxLinkPath {
         paxBuilder.writeBytes(paxRecord("linkpath", entry.linkName))
       }
-      paxPayload = paxBuilder.build()
-      paxName := "PaxHeaders/" + string(index)
+      paxPayload := paxBuilder.build()
+      paxName := "PaxHeaders/${index}"
       chunks.push(TarChunk {
         data: buildHeader(UstarPath { name: paxName, prefix: "" }, long(paxPayload.length), 420, Instant.EPOCH, 120),
       })
       appendPayload(chunks, paxPayload)
-      headerPath = UstarPath { name: "PaxEntry/" + string(index), prefix: "" }
     }
 
     storedSize := if requiresPaxSize then 0L else long(payload.length)
@@ -261,7 +258,7 @@ function buildTarChunks(entries: readonly TarWriteEntry[]): TarChunk[] {
     typeFlag: byte := if isDirectory then 53 else if isSymbolicLink then 50 else 48
     storedLinkName := if isSymbolicLink && !requiresPaxLinkPath then entry.linkName else ""
     chunks.push(TarChunk {
-      data: buildHeader(headerPath!, storedSize, mode, storedMtime, typeFlag, storedLinkName),
+      data: buildHeader(headerPath, storedSize, mode, storedMtime, typeFlag, storedLinkName),
     })
     appendPayload(chunks, payload)
   }
@@ -285,11 +282,11 @@ export function writeTarFile(path: string, entries: readonly TarWriteEntry[]): R
   if isGzipTarPath(path) {
     return case writeBlobStream(path, GzipStream(source)) {
       _: Success -> Success(),
-      failure: Failure -> Failure { error: "tar file write failed: " + ioErrorText(failure.error) },
+      failure: Failure -> Failure { error: "tar file write failed: ${ioErrorText(failure.error)}" },
     }
   }
   return case writeBlobStream(path, source) {
     _: Success -> Success(),
-    failure: Failure -> Failure { error: "tar file write failed: " + ioErrorText(failure.error) },
+    failure: Failure -> Failure { error: "tar file write failed: ${ioErrorText(failure.error)}" },
   }
 }

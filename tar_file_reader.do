@@ -40,7 +40,7 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
   }
 
   file := NativeArchiveFile.open(path) else error {
-    return Failure { error: "tar file scan failed: " + error }
+    return Failure { error: "tar file scan failed: ${error}" }
   }
   fileSize := file.size()
   if fileSize < TAR_BLOCK_SIZE * 2L || fileSize % TAR_BLOCK_SIZE != 0L {
@@ -54,7 +54,7 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
 
   while offset + TAR_BLOCK_SIZE <= fileSize {
     header := file.read(offset, TAR_BLOCK_SIZE) else error {
-      return Failure { error: "tar file scan failed: " + error }
+      return Failure { error: "tar file scan failed: ${error}" }
     }
 
     if isZeroRange(header, 0L, TAR_BLOCK_SIZE) {
@@ -62,7 +62,7 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
         return Failure { error: "tar read failed: archive terminator requires two zero blocks" }
       }
       second := file.read(offset + TAR_BLOCK_SIZE, TAR_BLOCK_SIZE) else error {
-        return Failure { error: "tar file scan failed: " + error }
+        return Failure { error: "tar file scan failed: ${error}" }
       }
       if !isZeroRange(second, 0L, TAR_BLOCK_SIZE) {
         return Failure { error: "tar read failed: archive terminator requires two zero blocks" }
@@ -71,7 +71,7 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
       let trailingOffset = offset + TAR_BLOCK_SIZE * 2L
       while trailingOffset < fileSize {
         trailing := file.read(trailingOffset, TAR_BLOCK_SIZE) else error {
-          return Failure { error: "tar file scan failed: " + error }
+          return Failure { error: "tar file scan failed: ${error}" }
         }
         if !isZeroRange(trailing, 0L, TAR_BLOCK_SIZE) {
           return Failure { error: "tar read failed: non-zero data follows archive terminator" }
@@ -105,20 +105,17 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
       continue
     }
 
-    pathValue := paxValue(localPax, globalPax, "path")
-    resolvedName := if pathValue == none then baseName else pathValue!
+    resolvedName := paxValue(localPax, globalPax, "path") ?? baseName
     try baseLinkName := readTextField(
       header,
       TAR_LINK_NAME_OFFSET,
       TAR_LINK_NAME_LENGTH,
       "entry link name",
     )
-    linkPathValue := paxValue(localPax, globalPax, "linkpath")
-    resolvedLinkName := if linkPathValue == none then baseLinkName else linkPathValue!
-    sizeText := paxValue(localPax, globalPax, "size")
+    resolvedLinkName := paxValue(localPax, globalPax, "linkpath") ?? baseLinkName
     let resolvedSize = baseSize
-    if sizeText != none {
-      try parsedSize := parseDecimal(sizeText!, "size")
+    if sizeText := paxValue(localPax, globalPax, "size") {
+      try parsedSize := parseDecimal(sizeText, "size")
       resolvedSize = parsedSize
     }
     let resolvedNextOffset = nextOffset
@@ -127,10 +124,9 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
       resolvedNextOffset = updatedOffset
     }
 
-    mtimeText := paxValue(localPax, globalPax, "mtime")
     let resolvedMtime = Instant.ofEpochSeconds(baseMtime)
-    if mtimeText != none {
-      try parsedMtime := parsePaxMtime(mtimeText!)
+    if mtimeText := paxValue(localPax, globalPax, "mtime") {
+      try parsedMtime := parsePaxMtime(mtimeText)
       resolvedMtime = parsedMtime
     }
 
@@ -140,7 +136,7 @@ export function scanTarFile(path: string): Result<readonly TarEntry[], string> {
     } else if typeFlag == 50 {
       kind = TarEntryKind.SymbolicLink
     } else if typeFlag != 0 && typeFlag != 48 {
-      return Failure { error: "tar read failed: unsupported entry type " + string(typeFlag) }
+      return Failure { error: "tar read failed: unsupported entry type ${typeFlag}" }
     }
 
     entries.push(TarEntry {
@@ -168,10 +164,10 @@ export function readTarEntry(path: string, entry: TarEntry): Result<readonly byt
   }
 
   file := NativeArchiveFile.open(path) else error {
-    return Failure { error: "tar entry read failed: " + error }
+    return Failure { error: "tar entry read failed: ${error}" }
   }
   data := file.read(entry.contentOffset, entry.size) else error {
-    return Failure { error: "tar entry read failed: " + error }
+    return Failure { error: "tar entry read failed: ${error}" }
   }
   return Success(data)
 }

@@ -73,7 +73,7 @@ export function readTextField(data: readonly byte[], offset: long, length: long,
   end := fieldEnd(data, offset, length)
   bytes := data.slice(int(offset), int(end))
   decoded := decodeUtf8(bytes) else {
-    return Failure { error: "tar read failed: invalid UTF-8 in " + context }
+    return Failure { error: "tar read failed: invalid UTF-8 in ${context}" }
   }
   return Success(decoded)
 }
@@ -94,11 +94,11 @@ export function parseOctalField(data: readonly byte[], offset: long, length: lon
       continue
     }
     if ended || character < 48 || character > 55 {
-      return Failure { error: "tar read failed: invalid octal " + context }
+      return Failure { error: "tar read failed: invalid octal ${context}" }
     }
     digit := long(character - 48)
     if value > (9223372036854775807L - digit) \ 8L {
-      return Failure { error: "tar read failed: overflowing octal " + context }
+      return Failure { error: "tar read failed: overflowing octal ${context}" }
     }
     value = value * 8L + digit
     sawDigit = true
@@ -146,7 +146,7 @@ export function readHeaderName(data: readonly byte[], offset: long): Result<stri
   try name := readTextField(data, offset + TAR_NAME_OFFSET, TAR_NAME_LENGTH, "entry name")
   try prefix := readTextField(data, offset + TAR_PREFIX_OFFSET, TAR_PREFIX_LENGTH, "entry prefix")
   if prefix.length > 0 && name.length > 0 {
-    return Success(prefix + "/" + name)
+    return Success("${prefix}/${name}")
   }
   if prefix.length > 0 {
     return Success(prefix)
@@ -156,17 +156,17 @@ export function readHeaderName(data: readonly byte[], offset: long): Result<stri
 
 export function parseDecimal(value: string, context: string): Result<long, string> {
   if value.length == 0 {
-    return Failure { error: "tar read failed: empty PAX " + context }
+    return Failure { error: "tar read failed: empty PAX ${context}" }
   }
   let result = 0L
   for index of 0..<value.length {
     character := value.charAt(index)
     if character < '0' || character > '9' {
-      return Failure { error: "tar read failed: invalid PAX " + context }
+      return Failure { error: "tar read failed: invalid PAX ${context}" }
     }
     digit := long(int(character) - int('0'))
     if result > (9223372036854775807L - digit) \ 10L {
-      return Failure { error: "tar read failed: overflowing PAX " + context }
+      return Failure { error: "tar read failed: overflowing PAX ${context}" }
     }
     result = result * 10L + digit
   }
@@ -275,13 +275,7 @@ export function parsePaxRecords(
 }
 
 export function paxValue(local: Map<string, string>, global: Map<string, string>, key: string): string | none {
-  return case local.get(key) {
-    found: Success -> found.value,
-    _: Failure -> case global.get(key) {
-      found: Success -> found.value,
-      _: Failure -> none,
-    },
-  }
+  return local.get(key) ?? global.get(key)?
 }
 
 export function alignedPayloadEnd(contentOffset: long, size: long, dataLength: long): Result<long, string> {
@@ -339,20 +333,17 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
       continue
     }
 
-    pathValue := paxValue(localPax, globalPax, "path")
-    resolvedName := if pathValue == none then baseName else pathValue!
+    resolvedName := paxValue(localPax, globalPax, "path") ?? baseName
     try baseLinkName := readTextField(
       data,
       offset + TAR_LINK_NAME_OFFSET,
       TAR_LINK_NAME_LENGTH,
       "entry link name",
     )
-    linkPathValue := paxValue(localPax, globalPax, "linkpath")
-    resolvedLinkName := if linkPathValue == none then baseLinkName else linkPathValue!
-    sizeText := paxValue(localPax, globalPax, "size")
+    resolvedLinkName := paxValue(localPax, globalPax, "linkpath") ?? baseLinkName
     let resolvedSize = baseSize
-    if sizeText != none {
-      try parsedSize := parseDecimal(sizeText!, "size")
+    if sizeText := paxValue(localPax, globalPax, "size") {
+      try parsedSize := parseDecimal(sizeText, "size")
       resolvedSize = parsedSize
     }
     let resolvedNextOffset = nextOffset
@@ -361,10 +352,9 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
       resolvedNextOffset = updatedOffset
     }
 
-    mtimeText := paxValue(localPax, globalPax, "mtime")
     let resolvedMtime = Instant.ofEpochSeconds(baseMtime)
-    if mtimeText != none {
-      try parsedMtime := parsePaxMtime(mtimeText!)
+    if mtimeText := paxValue(localPax, globalPax, "mtime") {
+      try parsedMtime := parsePaxMtime(mtimeText)
       resolvedMtime = parsedMtime
     }
 
@@ -374,7 +364,7 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
     } else if typeFlag == 50 {
       kind = TarEntryKind.SymbolicLink
     } else if typeFlag != 0 && typeFlag != 48 {
-      return Failure { error: "tar read failed: unsupported entry type " + string(typeFlag) }
+      return Failure { error: "tar read failed: unsupported entry type ${typeFlag}" }
     }
 
     entries.push(TarEntry {
@@ -395,11 +385,11 @@ export function readTarBlob(data: readonly byte[]): Result<TarArchive, string> {
 
 export function readTarFile(path: string): Result<TarArchive, string> {
   bytes := readBlob(path) else error {
-    return Failure { error: "tar file read failed: " + ioErrorText(error) }
+    return Failure { error: "tar file read failed: ${ioErrorText(error)}" }
   }
   if isGzipTarPath(path) {
     decoded := gunzip(bytes) else error {
-      return Failure { error: "tar file read failed: " + error }
+      return Failure { error: "tar file read failed: ${error}" }
     }
     return readTarBlob(decoded)
   }

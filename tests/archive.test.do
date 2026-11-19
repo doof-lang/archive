@@ -79,7 +79,7 @@ function patchFirstHeaderType(data: readonly byte[], typeFlag: byte): readonly b
   }
   digits := octal(checksum)
   let padded = digits
-  while padded.length < 6 { padded = "0" + padded }
+  while padded.length < 6 { padded = "0${padded}" }
 
   patched := BlobBuilder()
   patched.writeBytes(provisional)
@@ -107,7 +107,7 @@ function replaceFirstPaxPathKey(data: readonly byte[]): readonly byte[] {
 function patchHeaderSize(data: readonly byte[], headerOffset: int, size: long): readonly byte[] {
   digits := octal(size)
   let padded = digits
-  while padded.length < 11 { padded = "0" + padded }
+  while padded.length < 11 { padded = "0${padded}" }
 
   builder := BlobBuilder()
   builder.writeBytes(data)
@@ -124,7 +124,7 @@ function patchHeaderSize(data: readonly byte[], headerOffset: int, size: long): 
   }
   checksumDigits := octal(checksum)
   let checksumPadded = checksumDigits
-  while checksumPadded.length < 6 { checksumPadded = "0" + checksumPadded }
+  while checksumPadded.length < 6 { checksumPadded = "0${checksumPadded}" }
 
   patched := BlobBuilder()
   patched.writeBytes(provisional)
@@ -142,10 +142,10 @@ function encodeLength(value: string): int {
 }
 
 function paxRecordText(key: string, value: string): string {
-  body := key + "=" + value + "\n"
-  let length = encodeLength("0 " + body)
+  body := "${key}=${value}\n"
+  let length = encodeLength("0 ${body}")
   while true {
-    record := string(length) + " " + body
+    record := "${length} ${body}"
     actualLength := encodeLength(record)
     if actualLength == length { return record }
     length = actualLength
